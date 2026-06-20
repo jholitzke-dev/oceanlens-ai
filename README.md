@@ -2,6 +2,12 @@
 
 A dependency-light MVP for collecting NOAA, IOOS, and OOI ocean observations, matching optional satellite records, and surfacing evidence-based anomalies.
 
+## Live app
+
+**[Open OceanLens AI](https://oceanlens-ai.onrender.com)**
+
+The free service can take several seconds to wake after a period of inactivity.
+
 ## Run it
 
 Requires Node.js 22.5 or newer.
