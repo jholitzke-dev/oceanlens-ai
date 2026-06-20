@@ -1,0 +1,9 @@
+.agents/
+.codex/
+data/
+outputs/
+work/
+node_modules/
+.env
+.env.*
+*.log

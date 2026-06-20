@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#071c24" />
+    <title>OceanLens AI</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <aside class="sidebar">
+        <a class="brand" href="#globalExplorer"><span class="brand-mark">O</span><span>OCEANLENS AI</span></a>
+        <nav aria-label="Primary navigation">
+          <button class="nav-item active" data-target="globalExplorer"><span>⌁</span> Global explorer</button>
+          <button class="nav-item" data-target="liveNetwork"><span>◉</span> Live network</button>
+          <button class="nav-item" data-target="observations"><span>◇</span> Observations</button>
+          <button class="nav-item" data-target="aiInsights"><span>✦</span> AI insights</button>
+        </nav>
+        <div class="side-footer">
+          <div class="system-status"><i></i> All systems nominal</div>
+          <p>Global ocean explorer</p>
+        </div>
+      </aside>
+
+      <main>
+        <header id="globalExplorer" class="nav-section">
+          <div>
+            <p class="eyebrow">MARINE INTELLIGENCE / GLOBAL EXPLORER</p>
+            <h1>One ocean, <em>many signals.</em></h1>
+          </div>
+          <div class="header-actions">
+            <button id="liveStatus" class="live-pill" title="Refresh public data"><i></i> Connecting…</button>
+          </div>
+        </header>
+
+        <section id="liveNetwork" class="metrics nav-section" aria-label="Network metrics">
+          <article><p>LIVE PLATFORMS</p><strong id="stationCount">—</strong><span id="onlineCount">NOAA + IOOS + OOI</span></article>
+          <article><p>UNDERWATER PLATFORMS</p><strong id="readings24h">—</strong><span>live glider profiles</span></article>
+          <article><p>UNDERWATER OBSERVATIONS</p><strong id="avgTemperature">—</strong><span>current profile cache</span></article>
+          <article><p>SURFACE STATIONS</p><strong id="avgOxygen">—</strong><span>NOAA NDBC</span></article>
+        </section>
+        <section class="provider-strip" aria-label="Provider status">
+          <div><i></i><span>NOAA NDBC</span><strong id="noaaProviderStatus">connecting</strong></div>
+          <div><i></i><span>IOOS Glider DAC</span><strong id="ioosProviderStatus">connecting</strong></div>
+          <div><i></i><span>OOI mobile relay</span><strong id="ooiRelayStatus">connecting</strong></div>
+          <div class="credential-provider"><i></i><span>OOI direct / cabled</span><strong id="ooiDirectStatus">credentials required</strong></div>
+        </section>
+        <section class="workspace-tools" aria-label="Explorer tools">
+          <label>PLATFORMS
+            <select id="platformFilter">
+              <option value="all">All platforms</option>
+              <option value="surface">Surface buoys</option>
+              <option value="underwater">Underwater profiles</option>
+            </select>
+          </label>
+          <button id="nearestUnderwater">Find nearest underwater</button>
+          <label>HISTORY
+            <select id="historyWindow">
+              <option value="24">24 hours</option>
+              <option value="168" selected>7 days</option>
+              <option value="720">30 days</option>
+            </select>
+          </label>
+          <button id="watchPoint">Watch selected point</button>
+          <button id="exportJson">Export JSON</button>
+          <button id="exportCsv">Export CSV</button>
+          <button id="measurementGuide">What can it measure?</button>
+          <span id="watchStatus" class="tool-status">0 local watches</span>
+        </section>
+
+        <section class="dashboard-grid">
+          <article class="panel map-panel">
+            <div class="panel-header">
+              <div><p class="eyebrow">GLOBAL OBSERVATION NETWORK</p><h2 id="locationTitle">Monterey Bay</h2></div>
+              <div class="legend"><i></i> In-situ platform <i class="sat"></i> Search point</div>
+            </div>
+            <form id="locationForm" class="location-search">
+              <label><span>EXPLORE A LOCATION</span><input id="locationInput" value="Monterey Bay" placeholder="Place or latitude, longitude" /></label>
+              <label><span>RADIUS</span><select id="radiusSelect"><option value="500">500 km</option><option value="1200" selected>1,200 km</option><option value="2500">2,500 km</option><option value="5000">5,000 km</option></select></label>
+              <button type="submit">Explore</button>
+            </form>
+            <div class="quick-locations" id="quickLocations">
+              <button data-location="Monterey Bay">Monterey</button>
+              <button data-location="Great Barrier Reef">Great Barrier Reef</button>
+              <button data-location="North Atlantic">North Atlantic</button>
+              <button data-location="Arabian Sea">Arabian Sea</button>
+              <button data-location="Southern Ocean">Southern Ocean</button>
+            </div>
+            <div class="map-wrap">
+              <div id="geoMap" aria-label="Interactive global map of ocean observation platforms"></div>
+              <div class="layer-control">
+                <div class="basemap-switch" role="group" aria-label="Map view">
+                  <button class="active" type="button" data-basemap="satellite">Satellite</button>
+                  <button type="button" data-basemap="street">Street</button>
+                </div>
+                <label class="outlier-control"><input id="anomalyToggle" type="checkbox" checked /> Extreme outliers <span id="anomalyCount">0</span></label>
+              </div>
+              <div class="coordinate-readout" id="coordinateReadout"></div>
+            </div>
+          </article>
+
+          <article class="panel insight-panel">
+            <div class="panel-header"><div><p class="eyebrow">SURFACE STATION ANALYSIS</p><h2 id="analysisTitle">Observed pattern watch</h2></div><span id="analysisStatus" class="analysis-status">LIVE</span></div>
+            <div id="primaryInsight" class="primary-insight skeleton"></div>
+            <div id="patternList"></div>
+          </article>
+
+          <article id="observations" class="panel chart-panel nav-section">
+            <div class="panel-header">
+              <div><p class="eyebrow">TIME SERIES</p><h2 id="seriesTitle">Environmental signals</h2></div>
+              <span id="seriesLocation" class="panel-location">—</span>
+            </div>
+            <div id="chartLegend" class="chart-legend"></div>
+            <div id="seriesProvenance" class="provenance-strip"></div>
+            <canvas id="chartCanvas" aria-label="Environmental time series chart"></canvas>
+          </article>
+
+          <article class="panel station-panel">
+            <div class="panel-header">
+              <div><p class="eyebrow">NEARBY COVERAGE</p><h2>Ocean platforms</h2></div>
+              <span id="coverageBadge" class="coverage-badge">Searching…</span>
+            </div>
+            <div id="stationList" class="station-list"></div>
+          </article>
+
+          <article class="panel depth-panel">
+            <div class="panel-header">
+              <div><p class="eyebrow">SURFACE TO SEAFLOOR</p><h2 id="depthTitle">Depth data availability</h2></div>
+              <div class="depth-actions">
+                <span id="depthLocation" class="panel-location">—</span>
+                <label>REQUESTED RANGE
+                  <select id="depthSelect">
+                    <option value="200">200 m</option>
+                    <option value="1000">1,000 m</option>
+                    <option value="2000" selected>2,000 m</option>
+                    <option value="4000">4,000 m</option>
+                    <option value="6000">6,000 m</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+            <div class="depth-layout">
+              <div class="depth-chart-wrap">
+                <canvas id="depthCanvas" aria-label="Vertical ocean anomaly profile"></canvas>
+                <div id="depthTooltip" class="map-tooltip"></div>
+              </div>
+              <aside class="depth-summary">
+                <div id="depthFinding" class="depth-finding skeleton"></div>
+                <div id="depthProvenance" class="provenance-strip"></div>
+                <div id="methodList" class="method-list"></div>
+                <p class="prototype-notice">Only real profiling or acoustic observations are displayed.</p>
+              </aside>
+            </div>
+          </article>
+
+          <article class="panel data-panel">
+            <div class="panel-header">
+              <div><p class="eyebrow">MATCHED EVIDENCE</p><h2 id="dataTitle">Point data record</h2></div>
+              <span id="matchStatus" class="analysis-status">CHECKING</span>
+            </div>
+            <div class="data-grid">
+              <section><h3>Sensor observation</h3><div id="sensorRecord" class="record-card"></div></section>
+              <section><h3>Satellite scene</h3><div id="satelliteRecord" class="record-card"></div></section>
+              <section><h3>Space-time match</h3><div id="matchRecord" class="record-card"></div></section>
+            </div>
+          </article>
+
+          <article id="aiInsights" class="panel ai-suite-panel nav-section">
+            <div class="panel-header">
+              <div><p class="eyebrow">OCEANLENS AI</p><h2>Evidence-gated intelligence</h2></div>
+              <span id="aiSuiteLocation" class="panel-location">—</span>
+            </div>
+            <div class="ai-feature-grid">
+              <section><p class="eyebrow">PATTERN FINDER</p><div id="patternFinder" class="feature-card"></div></section>
+              <section><p class="eyebrow">DEPTH PREDICTOR</p><div id="depthPredictor" class="feature-card"></div></section>
+              <section><p class="eyebrow">STATION-HISTORY ALERTS</p><div id="anomalyAlerts" class="feature-card"></div></section>
+              <section><p class="eyebrow">SATELLITE CONFIDENCE</p><div id="satelliteConfidence" class="feature-card"></div></section>
+              <section class="trend-feature"><p class="eyebrow">TREND DASHBOARD</p><div id="trendDashboard" class="feature-card"></div></section>
+            </div>
+          </article>
+
+          <article class="panel strategy-panel">
+            <div class="panel-header">
+              <div><p class="eyebrow">LAYERED MONITORING STRATEGY</p><h2 id="strategyTitle">Optical + SAR + underwater sensors</h2></div>
+              <span id="strategyDecision" class="analysis-status">CHECKING</span>
+            </div>
+            <div class="strategy-grid">
+              <section><p class="eyebrow">DECISION</p><div id="strategySummary" class="feature-card"></div></section>
+              <section><p class="eyebrow">OPTICAL</p><div id="opticalStrategy" class="feature-card"></div></section>
+              <section><p class="eyebrow">SAR</p><div id="sarStrategy" class="feature-card"></div></section>
+              <section><p id="sensorLayerLabel" class="eyebrow">SENSOR PLATFORM</p><div id="underwaterStrategy" class="feature-card"></div></section>
+            </div>
+          </article>
+        </section>
+        <footer>OceanLens AI · Real observations only · Ephemeral cache · Last synchronized <span id="syncTime">—</span></footer>
+      </main>
+    </div>
+    <dialog id="guideDialog" class="guide-dialog">
+      <button id="closeGuide" class="dialog-close" aria-label="Close">×</button>
+      <h2>What OceanLens can measure</h2>
+      <div class="guide-grid">
+        <section><h3>Surface buoy</h3><p>Water temperature, waves, wind, pressure, air temperature, and visibility where reported.</p><p>Cannot provide a water-column depth profile.</p></section>
+        <section><h3>Underwater glider</h3><p>Depth-resolved temperature, salinity, oxygen, chlorophyll, pressure, and currents where equipped.</p><p>Profiles are mobile snapshots, not permanent stations.</p></section>
+        <section><h3>Optical satellite</h3><p>Surface color, chlorophyll, turbidity, and possible shallow-water depth under clear conditions.</p><p>Limited by clouds, haze, glint, and water clarity.</p></section>
+        <section><h3>SAR satellite</h3><p>Cloud-independent surface roughness, storms, wave/wind signatures, and coastlines.</p><p>Cannot directly measure underwater chemistry or depth.</p></section>
+      </div>
+    </dialog>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
