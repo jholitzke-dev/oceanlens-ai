@@ -1183,6 +1183,17 @@ async function readBody(req) {
 }
 
 async function handleApi(req, res, url) {
+  if (req.method === "GET" && url.pathname === "/api/health") {
+    return json(res, 200, {
+      status: "ok",
+      service: "oceanlens-ai",
+      generatedAt: new Date().toISOString(),
+      feeds: {
+        noaaNdbc: ndbcSync.status,
+        ioosGliders: ioosSync.status
+      }
+    });
+  }
   if (req.method === "GET" && url.pathname === "/api/overview") {
     return json(res, 200, getOverview());
   }

@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: oceanlens-ai
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeployTrigger: commit
+    renderSubdomainPolicy: enabled
+    envVars:
+      - key: NODE_ENV
+        value: production

@@ -14,6 +14,12 @@ Open `http://localhost:3000`.
 
 The app uses an in-memory runtime store. Data resets whenever the server restarts.
 
+## Deploy on Render
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/jholitzke-dev/oceanlens-ai)
+
+The included `render.yaml` creates a free Node web service, checks `/api/health`, and automatically deploys new commits from the linked default branch. Free services can spin down while idle, so the first request after inactivity may take longer.
+
 ## What is included
 
 - A responsive marine-operations dashboard
