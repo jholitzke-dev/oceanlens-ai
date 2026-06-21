@@ -7,6 +7,7 @@ const root = fileURLToPath(new URL(".", import.meta.url));
 const publicDir = join(root, "public");
 
 const NDBC_LATEST_URL = "https://www.ndbc.noaa.gov/data/latest_obs/latest_obs.txt";
+const NDBC_STATIONS_URL = "https://www.ndbc.noaa.gov/activestations.xml";
 let ndbcPlatforms = [];
 let ndbcSync = { status: "not-synced", lastAttemptAt: null, lastSuccessAt: null, stationCount: 0, error: null };
 const ndbcHistoryCache = new Map();
@@ -233,7 +234,39 @@ function parseNdbcValue(value) {
   return value && value !== "MM" ? Number(value) : null;
 }
 
-function parseNdbcLatest(text) {
+function decodeXml(value = "") {
+  return value
+    .replaceAll("&amp;", "&")
+    .replaceAll("&quot;", '"')
+    .replaceAll("&apos;", "'")
+    .replaceAll("&lt;", "<")
+    .replaceAll("&gt;", ">");
+}
+
+function parseNdbcStationMetadata(text) {
+  const stations = new Map();
+  for (const tag of text.matchAll(/<station\s+([^>]+)\/>/g)) {
+    const attributes = Object.fromEntries(
+      [...tag[1].matchAll(/(\w+)="([^"]*)"/g)].map((match) => [match[1], decodeXml(match[2])])
+    );
+    if (attributes.id) stations.set(attributes.id.toUpperCase(), attributes);
+  }
+  return stations;
+}
+
+function ndbcDisplayType(type) {
+  return {
+    buoy: "buoy",
+    tao: "tropical moored buoy",
+    dart: "tsunami buoy",
+    usv: "uncrewed surface vehicle",
+    oilrig: "offshore platform",
+    fixed: "fixed / shore station",
+    other: "surface station"
+  }[type] || "surface station";
+}
+
+function parseNdbcLatest(text, stationMetadata = new Map()) {
   return text.split(/\r?\n/)
     .filter((line) => line.trim() && !line.startsWith("#"))
     .map((line) => {
@@ -245,11 +278,17 @@ function parseNdbcLatest(text) {
         visibility, tide] = values;
       const observedAt = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute))).toISOString();
       const fresh = Date.now() - new Date(observedAt).getTime() <= 24 * 3_600_000;
+      const metadata = stationMetadata.get(id.toUpperCase()) || {};
+      const officialType = metadata.type || "unknown";
+      const displayType = ndbcDisplayType(officialType);
       return {
         id: `NDBC-${id}`,
         stationId: id,
-        name: `NOAA buoy ${id}`,
-        type: "live-buoy",
+        name: metadata.name ? `${metadata.name} (${id})` : `NOAA ${displayType} ${id}`,
+        type: displayType,
+        officialType,
+        stationCategory: officialType === "fixed" ? "fixed" : "marine",
+        marine: officialType !== "fixed",
         latitude: Number(lat),
         longitude: Number(lon),
         maxDepthM: 0,
@@ -281,12 +320,21 @@ function parseNdbcLatest(text) {
 async function syncNdbc() {
   ndbcSync = { ...ndbcSync, status: "syncing", lastAttemptAt: new Date().toISOString(), error: null };
   try {
-    const response = await fetch(NDBC_LATEST_URL, {
-      headers: { "User-Agent": "Pelagos-Intelligence/0.1 educational-prototype" },
-      signal: AbortSignal.timeout(15_000)
-    });
-    if (!response.ok) throw new Error(`NOAA returned ${response.status}`);
-    const parsed = parseNdbcLatest(await response.text());
+    const [latestResponse, metadataResponse] = await Promise.all([
+      fetch(NDBC_LATEST_URL, {
+        headers: { "User-Agent": "OceanLens-AI/0.2" },
+        signal: AbortSignal.timeout(15_000)
+      }),
+      fetch(NDBC_STATIONS_URL, {
+        headers: { "User-Agent": "OceanLens-AI/0.2" },
+        signal: AbortSignal.timeout(15_000)
+      })
+    ]);
+    if (!latestResponse.ok) throw new Error(`NOAA returned ${latestResponse.status}`);
+    const metadata = metadataResponse.ok
+      ? parseNdbcStationMetadata(await metadataResponse.text())
+      : new Map();
+    const parsed = parseNdbcLatest(await latestResponse.text(), metadata);
     if (!parsed.length) throw new Error("NOAA feed contained no usable stations");
     ndbcPlatforms = parsed;
     for (const platform of parsed) {
@@ -308,6 +356,8 @@ async function syncNdbc() {
       lastSuccessAt: new Date().toISOString(),
       stationCount: parsed.length,
       freshStationCount: parsed.filter((platform) => platform.status === "live").length,
+      marineStationCount: parsed.filter((platform) => platform.marine).length,
+      fixedStationCount: parsed.filter((platform) => !platform.marine).length,
       error: null
     };
   } catch (error) {
@@ -465,6 +515,8 @@ async function syncIoosDataset(config) {
     live: true,
     underwater: true,
     profileAvailable: true,
+    stationCategory: "underwater",
+    marine: true,
     measurements: {
       waterTemperatureC: position.temperature,
       salinity: position.salinity,
@@ -649,7 +701,7 @@ async function buildLocationTimeSeries(latitude, longitude, locationName, select
       location: { name: locationName || `${latitude.toFixed(2)}°, ${longitude.toFixed(2)}°`, latitude, longitude },
       source: null,
       points: [],
-      message: "Select a live NOAA buoy to view real observation history."
+      message: "Select a live NOAA surface station to view real observation history."
     };
   }
   const cutoff = Date.now() - historyHours * 3_600_000;
@@ -693,6 +745,8 @@ function buildExtremeSurfaceOutliers() {
   const maximumAgeMs = 24 * 3_600_000;
   const peerRadiusKm = 1500;
   const freshPlatforms = ndbcPlatforms.filter((platform) =>
+    platform.marine
+    &&
     Date.now() - new Date(platform.observedAt).getTime() <= maximumAgeMs
   );
   const outliers = [];
@@ -861,7 +915,7 @@ async function buildOceanLensAi(latitude, longitude, selectedPlatform = null, hi
     Number.isFinite(sensor.temperature) && Number.isFinite(sensor.depth_meters) && sensor.depth_meters > 0
   );
 
-  let anomaly = { available: false, message: "Select a live NOAA buoy with station history." };
+  let anomaly = { available: false, message: "Select a live NOAA surface station with station history." };
   let trends = { available: false, series: [], unavailable: ["temperature", "clarity", "depth estimate", "chlorophyll", "turbidity"] };
   const gliderProfile = selectedPlatform ? ioosProfiles.get(selectedPlatform.id) : null;
   if (gliderProfile) {
@@ -1036,7 +1090,7 @@ async function buildLocationInsights(latitude, longitude, radiusKm, maxDepthM, l
       available: false,
       generatedAt: new Date().toISOString(),
       location: { name: locationName, latitude, longitude, radiusKm, maxDepthM },
-      message: "No real observation series is selected. Choose a live NOAA buoy to run evidence-based analysis.",
+      message: "No real observation series is selected. Choose a live NOAA surface station to run evidence-based analysis.",
       nearbyCount: nearby.length
     };
   }

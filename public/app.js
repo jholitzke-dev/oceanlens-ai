@@ -16,7 +16,7 @@ const state = {
   stations: [], observations: [], globalPlatforms: [], nearbyPlatforms: [], depthProfile: null,
   center: places["monterey bay"], mapScale: 1, map: null, mapLayers: null, selectionVersion: 0,
   selectedPlatformId: null, selectedOutlierId: null, anomalyOutliers: [],
-  platformFilter: "all", latestBundle: null,
+  platformFilter: "marine", latestBundle: null,
   watches: JSON.parse(localStorage.getItem("oceanlens-watches") || "[]")
 };
 
@@ -39,7 +39,9 @@ function platformQuality(platform) {
 
 function platformVisible(platform) {
   if (state.platformFilter === "underwater") return Boolean(platform.underwater);
-  if (state.platformFilter === "surface") return !platform.underwater && platform.live;
+  if (state.platformFilter === "fixed") return platform.stationCategory === "fixed";
+  if (state.platformFilter === "surface") return !platform.underwater && platform.marine;
+  if (state.platformFilter === "marine") return Boolean(platform.marine);
   return true;
 }
 
